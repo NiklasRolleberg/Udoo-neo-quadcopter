@@ -1,16 +1,15 @@
-package quadcopter.udooneo.neoquadcopter;
+package quadcopter.udooneo.neoquadcopter.View;
 
 import android.content.Intent;
-import android.net.Uri;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 
-import com.google.android.gms.appindexing.Action;
-import com.google.android.gms.appindexing.AppIndex;
-import com.google.android.gms.common.api.GoogleApiClient;
+import quadcopter.udooneo.neoquadcopter.QuadcopterApplication;
+import quadcopter.udooneo.neoquadcopter.R;
+import quadcopter.udooneo.neoquadcopter.model.Model;
 
 public class LauncherActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -37,21 +36,19 @@ public class LauncherActivity extends AppCompatActivity implements View.OnClickL
         System.out.println("IP: " + ip_field.getText());
         System.out.println("port: " + port_field.getText());
 
-        Intent in = new Intent(getApplicationContext(),controlActivity.class);
-        startActivity(in);
+        //Intent in = new Intent(getApplicationContext(),controlActivity.class);
+        //startActivity(in);
 
-        /*
-        Model m = ((MyApplication) this.getApplication()).getModel();
-        m.setIpAdress(ip_field.getText().toString());
-        m.setPort(Integer.parseInt(port_field.getText().toString()));
-        if(m.connect()) {
+
+        Model m = ((QuadcopterApplication) this.getApplication()).getModel();
+        if(m.setupConnection(ip_field.getText().toString(), Integer.parseInt(port_field.getText().toString()))) {
             System.out.println("Start new Activity");
-            Intent in = new Intent(getApplicationContext(),MapsActivity.class);
+            Intent in = new Intent(getApplicationContext(),controlActivity.class);
             startActivity(in);
         }
         else {
             System.out.println("Failed!");
         }
-        */
+
     }
 }
