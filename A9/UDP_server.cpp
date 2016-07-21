@@ -10,7 +10,7 @@
 #include <iostream>
 #include "observer.hpp"
 
-#include "UDP_Server.hpp"
+#include "UDP_server.hpp"
 
 UDP_server::UDP_server()
 {

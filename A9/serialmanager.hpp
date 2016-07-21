@@ -3,7 +3,7 @@
 
 #include "serial.hpp"
 #include <cstring>
-#include "Observer.hpp"
+#include "observer.hpp"
 #include <thread>
 
 class SerialPortManager : public Observable
