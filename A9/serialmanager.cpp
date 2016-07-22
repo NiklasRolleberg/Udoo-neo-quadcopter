@@ -93,6 +93,7 @@ void SerialPortManager::stop()
 void SerialPortManager::send(std::string s)
 {
   std::cout << "send: " << s << std::endl;
+  int w = port.send(s.c_str(),s.size());
 
 }
 

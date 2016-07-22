@@ -23,7 +23,7 @@ public:
 
   void debug();
 
-  int send(char* buf, int l);
+  int send(const char* buf, int l);
 
   int receive(char* buf, int l);
 

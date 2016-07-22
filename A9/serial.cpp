@@ -112,7 +112,7 @@ void SerialPort::debug()
   */
 }
 
-int SerialPort::send(char* buf, int l)
+int SerialPort::send(const char* buf, int l)
 {
   return write(fd, buf, l);
 }
