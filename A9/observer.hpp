@@ -7,48 +7,47 @@
 class Observer
 {
 public:
-    Observer(){};
-    virtual void update() = 0;
+  Observer(){};
+  virtual void update() = 0;
 };
 
 
 class Observable
 {
 private:
-    std::vector<Observer*> observers;
-    bool ch;
+  std::vector<Observer*> observers;
+  bool ch;
 
 public:
-    Observable(){ch = false;};
+  Observable(){ch = false;};
 
-    void notifyObservers()
-    {
-        for (std::vector<Observer*>::iterator it = observers.begin(); it != observers.end(); ++it)
-            (*it)->update();
-        ch = false;
-    };
+  void notifyObservers()
+  {
+    for (std::vector<Observer*>::iterator it = observers.begin(); it != observers.end(); ++it)
+      (*it)->update();
+ 
+    ch = false;
+  };
 
-    void setChanged()
-    {
-      ch = true;
-    };
+  void setChanged()
+  {
+    ch = true;
+  };
 
-    bool hasChanged()
-    {
-      return ch;
-    };
+  bool hasChanged()
+  {
+    return ch;
+  };
 
-    void AddObserver(Observer &o)
-    {
-        observers.push_back(&o);
+  void AddObserver(Observer &o)
+  {
+    observers.push_back(&o);
+  };
 
-    };
-
-    void ClearObservers()
-    {
+  void ClearObservers()
+  {
         observers.clear();
-    };
-
+  };
 };
 
 #endif //OBSERVERPATTERN_H

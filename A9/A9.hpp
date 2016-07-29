@@ -4,11 +4,16 @@
 #include "serialmanager.hpp"
 #include "UDP_server.hpp"
 
-class A9 : public Observer {
+#include "gps.hpp"
 
+class A9 : public Observer 
+{
 private:
-  SerialPortManager serialport;
+  SerialPortManager serialport_M4;
+  SerialPortManager serialport_GPS;
   UDP_server network;
+
+  GPS gps;
 public:
   A9();
   ~A9();

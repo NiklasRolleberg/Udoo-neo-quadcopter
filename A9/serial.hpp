@@ -5,14 +5,13 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string>
 
 class SerialPort {
 
 private:
 
-  //int test1[10];
   int fd;
-  //int test2[10]; //keeps fd from changing...
 
   int set_interface_attribs (int fd, int speed, int parity);
   void set_blocking (int fd, int should_block);
@@ -20,6 +19,8 @@ private:
 public:
 
   SerialPort();
+  
+  void setup(std::string portName, int speed);
 
   void debug();
 

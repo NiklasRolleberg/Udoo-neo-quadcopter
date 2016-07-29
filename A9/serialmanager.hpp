@@ -13,7 +13,7 @@ private:
   bool run;
   SerialPort port;
 
-  static const int bufferSize = 40;
+  static const int bufferSize = 256;
   char buffer[bufferSize];
   int stopIndex;
 
@@ -26,14 +26,14 @@ private:
 public:
   SerialPortManager();
   ~SerialPortManager();
+  
+  void setSerialPort(std::string portname, int speed);
 
   void start();
   void stop();
 
   void send(std::string s);
   std::string getLine();
-
-
 };
 
 #endif //SERIALMANAGER

@@ -11,7 +11,6 @@ SerialPortManager::SerialPortManager()
   stopIndex = 0;
   for(int i=0;i<bufferSize;i++)
     buffer[i] = 0;
-
 }
 
 SerialPortManager::~SerialPortManager()
@@ -21,8 +20,15 @@ SerialPortManager::~SerialPortManager()
   delete listenThread;
 }
 
+void SerialPortManager::setSerialPort(std::string portname, int speed)
+{
+  port.setup(portname,speed);
+}
+
 void SerialPortManager::start()
 {
+  //setup serial port 
+  //port.setup("/dev/ttyMCC");
   //TODO start in a new thread
   listenThread = new std::thread(&SerialPortManager::listen, this);
   //listen();

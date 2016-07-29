@@ -31,10 +31,12 @@ uint8_t esc1_pin = 5;
 uint8_t esc2_pin = 6;
 uint8_t esc3_pin = 7;
 
+
 Servo esc0;
 Servo esc1;
 Servo esc2;
 Servo esc3;
+
 
 int minPulse = 1000;
 int maxPulse = 2000;
@@ -102,12 +104,12 @@ void setup()
   accMag.init();
 
   //gyro.calibrate(gyro.gBias);
-
+  
   esc0.attach(esc0_pin);
   esc1.attach(esc1_pin);
   esc2.attach(esc2_pin);
   esc3.attach(esc3_pin);
-
+  
 }
 
 void loop()
@@ -224,7 +226,7 @@ void updateServo()
       pid_pitch.update();
       pid_yaw.update();
       */
-
+      
       // TODO generate pulses based on pid output
       int front_left = 1500 + 500.0*sin(phi);
       int front_right = 1500 + 500.0*sin(theta);

@@ -49,19 +49,19 @@ void UDP_server::listen()
 {
   while (run)
   {
-      n = recvfrom(sock,buf,1024,0,(struct sockaddr *)&from,&fromlen);
-      if (n < 0) error("recvfrom");
-      //write(1,"\nReceived a datagram: ",21);
-      //write(1,buf,n);
-      message = std::string(buf,n);
-      //std::cout << "message received: " << message << std::endl;
-      setChanged();
-      notifyObservers();
-      /*
-      buf[n]=0;
-      printf("%s\n", buf);
-      send(buf,n);
-      */
+    n = recvfrom(sock,buf,1024,0,(struct sockaddr *)&from,&fromlen);
+    if (n < 0) error("recvfrom");
+    //write(1,"\nReceived a datagram: ",21);
+    //write(1,buf,n);
+    message = std::string(buf,n);
+    //std::cout << "message received: " << message << std::endl;
+    setChanged();
+    notifyObservers();
+    /*
+    buf[n]=0;
+    printf("%s\n", buf);
+    send(buf,n);
+    */
   }
 }
 
@@ -78,7 +78,6 @@ void UDP_server::send(char* buf, int length)
              0,(struct sockaddr *)&from,fromlen);
   */
   if (n  < 0) error("sendto");
-
 }
 
 void UDP_server::error(const char *msg)

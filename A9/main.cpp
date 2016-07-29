@@ -5,5 +5,4 @@
 int main(void)
 {
   A9 a9;
-
 }
