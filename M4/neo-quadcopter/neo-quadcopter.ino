@@ -114,6 +114,8 @@ void setup()
 
 void loop()
 {
+
+  delay(10000); //10s delay
   // Gyro resolution?
   gyro.getGres();
 
@@ -138,7 +140,7 @@ void loop()
       updateServo(); //update pwn signals
       calculationTime = micros()-lastUpdate;
     }
-
+    
     if(micros() - lastWrite >= 500000)
     {
       lastWrite = micros();
@@ -149,9 +151,9 @@ void loop()
       Serial.print(theta*(180/M_pi));
       Serial.print(",");
       Serial.print(psi*(180/M_pi));
-      Serial.println("*00");
+      Serial.println("*00\n");
     }
-
+    
     //Check serial port
     if (Serial.available())
     {
@@ -221,11 +223,11 @@ void updateServo()
   switch (mode){
     case 1:
     {
-      /*
+      
       pid_roll.update();
       pid_pitch.update();
       pid_yaw.update();
-      */
+      
       
       // TODO generate pulses based on pid output
       int front_left = 1500 + 500.0*sin(phi);

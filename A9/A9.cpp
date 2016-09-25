@@ -9,13 +9,13 @@ A9::A9()
   serialport_M4.AddObserver(*this);
   serialport_M4.start();
 
-  serialport_GPS.setSerialPort("/dev/ttyUSB0",9600);
-  serialport_GPS.AddObserver(*this);
-  serialport_GPS.start();
-  serialport_GPS.send("$PMTK220,5000*1B\r\n"); // position data every 5s
-  serialport_GPS.send("$PMTK300,10000,0,0,0,0*2C\r\n"); //fix data every 10s
-  serialport_GPS.send("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n"); //GPRMC and GGA
-  serialport_GPS.send("$PGCMD,33,0*6D\r\n"); //don't send antenna message
+  //serialport_GPS.setSerialPort("/dev/ttymxc5",9600);
+  //serialport_GPS.AddObserver(*this);
+  //serialport_GPS.start();
+  //serialport_GPS.send("$PMTK220,5000*1B\r\n"); // position data every 5s
+  //serialport_GPS.send("$PMTK300,10000,0,0,0,0*2C\r\n"); //fix data every 10s
+  //serialport_GPS.send("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n"); //GPRMC and GGA
+  //serialport_GPS.send("$PGCMD,33,0*6D\r\n"); //don't send antenna message
 
   network.AddObserver(*this);
   network.start(5555);
@@ -38,8 +38,15 @@ void A9::update()
   }
   if(network.hasChanged())
   {
-    std::cout << "From Android: " << network.getMessage() << std::endl;
-    //serialport.send("$QCPUL,1501,1502,1503,1504,*00\n");
-    serialport_M4.send("$QCSTA,0.111,0.222,0.333,*00\n");
+    std::string s = network.getMessage();
+    std::cout << "From Android: " << s << std::endl;
+    std::string toSend = "$QCPUL";
+    toSend += s.substr (10,20);
+    toSend += ",*00\n";
+    std::cout << "toSend: " << toSend << std::endl;
+    serialport_M4.send(toSend);
+    //serialport_M4.send("$QCPUL,1950,1950,1950,1950,*00\n");
+
+    //serialport_M4.send("$QCSTA,0.111,0.222,0.333,*00\n");
   }
 }

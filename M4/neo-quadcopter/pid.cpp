@@ -38,7 +38,7 @@ void Pidcontroller::update()
     lasterror = error;
   }
   *output = output_offset + min(output_limit, max(-output_limit, p + I + d ));
-  
+  /*
   Serial.print(error);
   Serial.print(",");
   Serial.print(p);
@@ -47,7 +47,7 @@ void Pidcontroller::update()
   Serial.print(",");
   Serial.print(d);
   Serial.print(",");
-  
+  */
 }
 
 void Pidcontroller::reset()
