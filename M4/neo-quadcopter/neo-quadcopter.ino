@@ -7,6 +7,7 @@
 
 
 #define M_pi 3.14159265359
+#define bufferSize 64
 
 FXAS21002C gyro = FXAS21002C(0x20); // SA0=1 0x21
 FXOS8700CQ accMag = FXOS8700CQ(0x1E);
@@ -18,15 +19,18 @@ double phi, theta, psi;
 //theta = roll (luta höger/vänster)
 //psi = yaw (snurra)
 
+//const char base61_numbers[]="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+//char eulerBuffer[] = "<eAABBCC>";
+
 //serial buffers
 char byteRead;
-char buffer[64];
+char buffer[bufferSize];
 volatile uint8_t buffptr = 0;
 char csBuffer[2];
 char tempBuffer[10];
 
 //Serial0 Buffers
-char radioBuffer[64];
+char radioBuffer[bufferSize];
 volatile uint8_t serial0ptr = 0;
 
 // servo stuff
@@ -61,7 +65,7 @@ double d_pitch = 3100;
 double output_pitch = 0;
 double target_pitch = 0;
 Pidcontroller pid_pitch(&phi,&output_pitch,&target_pitch,
-                       p_pitch,i_pitch,d_pitch,
+                       &p_pitch,&i_pitch,&d_pitch,
                        limit_min,limit_max,Ilimit);
 
 double p_roll = 27;//100;
@@ -70,7 +74,7 @@ double d_roll = 3100;//100;
 double output_roll = 0;
 double target_roll = 0;
 Pidcontroller pid_roll(&theta,&output_roll,&target_roll,
-                       p_roll,i_roll,d_roll,
+                       &p_roll,&i_roll,&d_roll,
                        limit_min,limit_max,Ilimit);
 
 double p_yaw = 0;
@@ -79,13 +83,13 @@ double d_yaw = 0;
 double output_yaw = 0;
 double target_yaw = 0;
 Pidcontroller pid_yaw(&psi,&output_yaw,&target_yaw,
-                       p_yaw,i_yaw,d_yaw,
+                       &p_yaw,&i_yaw,&d_yaw,
                        limit_min,limit_max,Ilimit);
 
 
 /**
  * Throttle: base pulse length before pid addiations
- * 0-maxthrottle
+ * 0 to maxthrottle
  */
 int maxThrottle = 600;
 int throttle = 0;
@@ -105,7 +109,7 @@ void setup()
   digitalWrite(13, LOW);
 
   Serial.begin(115200);
-  Serial0.begin(115200);
+  //Serial0.begin(115200);
   Wire1.begin();
 
   // Initialize the FXAS21002C
@@ -157,29 +161,12 @@ void loop()
       updateServo(); //update pwn signals
       calculationTime = micros()-lastUpdate;
     }
-    
-    if(micros() - lastWrite >= 1000000)
+
+    if(micros() - lastWrite >= 10000000)
     {
       lastWrite = micros();
-
-      Serial.print("$QCEUL,");
-      Serial.print(phi*(180/M_pi));
-      Serial.print(",");
-      Serial.print(theta*(180/M_pi));
-      Serial.print(",");
-      Serial.print(psi*(180/M_pi));
-      Serial.println("*00\n");
-
-      Serial.print("Target: ");
-      Serial.print(target_pitch*(180/M_pi));
-      Serial.print(",");
-      Serial.print(target_roll*(180/M_pi));
-      Serial.print(",");
-      Serial.println(target_yaw*(180/M_pi));
-      
-      
+      Serial.println("M4 is still running");
     }
-    
     
     //Check serial port
     if (Serial.available())
@@ -187,13 +174,15 @@ void loop()
       //Serial.println("Reading");
       // read the most recent byte
       byteRead = Serial.read();
-      if(byteRead == '\n')
+      if(byteRead == '>')
       {
-        decodeMessage();
+        buffer[buffptr % bufferSize] = byteRead;
+        buffptr++;
+        decodeBuffer(&buffer[0],buffptr);
         buffptr = 0;
 
         //reset buffers
-        for(int8_t i=0;i<64;i++)
+        for(int8_t i=0;i<bufferSize;i++)
         {
           buffer[i] = 0;
           if(i<10)
@@ -204,23 +193,20 @@ void loop()
       }
       else
       {
-        buffer[buffptr % 64] = byteRead;
+        buffer[buffptr % bufferSize] = byteRead;
         buffptr++;
       }
     }
-
-    
-    //Check serial port
+    /*
+    //Check other serial port
     if (Serial0.available())
     {
-      //Serial.println("Reading");
-      // read the most recent byte
       byteRead = Serial0.read();
       if(byteRead == '\n')
       {
-        decodeRadioBuffer();
-        //Serial.print("R: ");
-        //Serial.println(radioBuffer);
+        radioBuffer[serial0ptr % 64] = byteRead;
+        serial0ptr++;
+        decodeBuffer(&radioBuffer[0],buffptr);
         serial0ptr = 0;
 
         //reset buffers
@@ -231,13 +217,12 @@ void loop()
       }
       else
       {
-        radioBuffer[serial0ptr % 64] = byteRead;
+        radioBuffer[serial0ptr % bufferSize] = byteRead;
         serial0ptr++;
       }
-    }
+    }*/
   }
 }
-
 
 void update()
 {
@@ -314,259 +299,200 @@ void updateServo()
   }
 }
 
-void decodeRadioBuffer()
+void decodeBuffer(char* buff, uint8_t ptr)
 {
-  //find '<'
-  bool foundstart = false;
-  bool foundstop = false;
-  int startIndex;
-  int stopIndex;
-  int8_t it;
+  uint8_t startChar = bufferSize+1; // '<'
+  uint8_t endChar = bufferSize+1;   // '>'
 
-  for(int i=0;i<64;i++)
+  //find start character '<'
+  for(int i=0;i<ptr;i++)
   {
-    if(radioBuffer[i] == '<')
+    if( (*(buff+i)) == '<')
     {
-      foundstart = true;
-      startIndex = i;  
+      startChar = i;
     }
-    if(radioBuffer[i] == '>')
+    if((*(buff+i)) == '>')
     {
-      foundstop = true;
-      stopIndex = i;  
+      endChar = i;
+      break;
     }
   }
-  if(!foundstart || !foundstop)
+  //Did not find start and end character
+  if(startChar>endChar || startChar == bufferSize+1 || endChar == bufferSize+1)
     return;
 
-  //find 1:st pulse
-  startIndex+=3;
-  for(it=startIndex;it<=stopIndex;it++) {
-    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
-      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
-      target_roll = max(-M_pi/4,min(M_pi/4,(M_pi/180)*strtod(tempBuffer,NULL)));
+  //find type
+  char type = *(buff+startChar+1);
+  uint8_t message_length = endChar-startChar;
+
+  //Decode the message
+  switch(type) {
+    case 'A':
+      //Serial.println("Arm");
+      if(message_length == 3)
+        decodeArm(buff,startChar,endChar);
       break;
-    }
-  }
-
-  //Serial.println(tempBuffer);
-
-  //find 2:nd pulse
-  startIndex = it+1;
-  for(it=startIndex;it<=stopIndex;it++) {
-    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
-      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
-      target_pitch = max(-M_pi/4,min(M_pi/4,(M_pi/180)*strtod(tempBuffer,NULL)));
+    case 'S':
+      //Serial.println("Stop");
+      if(message_length == 3)
+        decodeStop(buff,startChar,endChar);
       break;
-    }
-  }
-  //find 3:rd yaw
-  startIndex = it+1;
-  for(it=startIndex;it<=stopIndex;it++) {
-    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
-      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
-      target_yaw = max(-M_pi/4,min(M_pi/4,(M_pi/180)*strtod(tempBuffer,NULL)));
+    case 'E':
+      //Serial.println("control data");
+      if(message_length == 10)
+        decodeEulerData(buff,startChar,endChar);
       break;
-    }
-  }
-
-  //Reset tempbuffer
-  for(int i=0;i<10;i++)
-    tempBuffer[i] = 0;
-    
-  //find 4:th throttle
-  startIndex = it+1;
-  for(it=startIndex;it<=stopIndex;it++) {
-    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
-      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
-      throttle = max(0,min(maxThrottle,strtod(tempBuffer,NULL)));
+    case 'P':
+      //Serial.println("Manual control data");
+      if(message_length == 10)
+        decodePulseData(buff,startChar,endChar);
       break;
-    }
+    case 'e':
+      if(message_length == 3)
+        sendEulerData(0);
+      break;
+    case 'C':
+      if(message_length == 3)
+        calibrate();
+      break;    
   }
-
-  //Serial.println(tempBuffer);
-
-  if(throttle > 10)
-    mode = 1; //set mode: fly!
-  else  
-    mode = 0; //standby 
-
-  /*  
-  Serial.print("Target_roll:");
-  Serial.println(target_roll);
-  Serial.print("Target_pitch:");
-  Serial.println(target_pitch);
-  Serial.print("Target_yaw:");
-  Serial.println(target_yaw);
-  Serial.print("Throttle: ");
-  Serial.println(throttle);
-  */  
 }
 
-void decodeMessage()
+void decodeArm(char* buff, uint8_t startPtr, uint8_t endPtr) 
 {
-  //Serial.println("Decode messsage");
-  //check for start char '$'
-  int8_t startIndex = -1;
-  int8_t stopIndex = -1;
-  int8_t it;
-  for(it=0;it<128;it++) {
-    if(buffer[it]=='$') {startIndex = it; break;}
+  if(mode != 1)
+  {
+    mode = 1;
+    throttle = 0;
+    target_pitch = 0;
+    target_roll= 0;
+    target_yaw= 0;
   }
-  for(it=0;it<128;it++) {
-    if(buffer[it]=='*') {stopIndex = it; break;}
+  if((*(buff+startPtr+2)=='1'))
+  {
+    Serial.println("<A2>");
   }
-  if(128-stopIndex < 2) {
-    return;
-  }
-  if(startIndex == -1 || stopIndex == -1) {
-    return;
-  }
-  csBuffer[0] = buffer[stopIndex+1];
-  csBuffer[1] = buffer[stopIndex+2];
-  int checksumIn = (int)strtol(csBuffer,NULL,16);
-  if(calculateChecksum(startIndex,stopIndex) != checksumIn && checksumIn != 0)
-    return;
-  //Serial.println("Checksum checks out");
+}
 
-  /**Decode messages*/
-
-  /**Write current angle*/
-  if (strncmp(buffer+startIndex+1,"QCANG",5)==0) {
-    Serial.print("Current angle: " );
-    Serial.print(phi*(180/M_pi));
-    Serial.print(",");
-    Serial.print(theta*(180/M_pi));
-    Serial.print(",");
-    Serial.println(psi*(180/M_pi));
-  }
-
-  /**Set Target Angles*/
-  /*"$QCSTA,roll,pitch,yaw,throttle,*CS"*/
-  if (strncmp(buffer+startIndex+1,"QCSTA",5)==0) {
-    //Serial.println("Set Target Angles message");
-
-    //find 1:st pulse
-    startIndex+=7;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        target_roll = max(-M_pi/4,min(M_pi/4,strtod(tempBuffer,NULL)));
-        break;
-      }
-    }
-
-    //find 2:nd pulse
-    startIndex = it+1;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        target_pitch = max(-M_pi/4,min(M_pi/4,strtod(tempBuffer,NULL)));
-        break;
-      }
-    }
-
-    //find 3:rd yaw
-    startIndex = it+1;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        target_yaw = max(-M_pi/4,min(M_pi/4,strtod(tempBuffer,NULL)));
-        break;
-      }
-    }
-
-    //find 4:th throttle
-    startIndex = it+1;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        throttle = max(0,min(maxThrottle,strtod(tempBuffer,NULL)));
-        break;
-      }
-    }
-    /*
-    Serial.print("Target_roll:");
-    Serial.println(target_roll);
-    Serial.print("Target_pitch:");
-    Serial.println(target_pitch);
-    Serial.print("Target_yaw:");
-    Serial.println(target_yaw);
-    Serial.print("Throttle: ");
-    Serial.println(throttle);
-    */
-    if(throttle > 10)
-      mode = 1; //set mode: fly!
-    else 
-      mode = 0; //standby
-
-    //Serial.print("Mode: ");
-    //Serial.println(mode);
-  }
-
-  /**set pulse length*/
-  /*"$QCPUL,pulse1,pulse2,pulse3,pulse4,*CS"*/
-  if (strncmp(buffer+startIndex+1,"QCPUL",5)==0) {
-    //Serial.println("Set pulse length message received");
+void decodeStop(char* buff, uint8_t startPtr, uint8_t endPtr) 
+{
+  mode = 0;
+  throttle = 0;
+  target_pitch = 0;
+  target_roll= 0;
+  target_yaw= 0;
   
-    //find 1:st pulse
-    startIndex+=7;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        esc0_pulse = max(minPulse,min(maxPulse,(int)strtol(tempBuffer,NULL,10)));
-        break;
-      }
-    }
-
-    //find 2:nd pulse
-    startIndex = it+1;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        esc1_pulse = max(minPulse,min(maxPulse,(int)strtol(tempBuffer,NULL,10)));
-        break;
-      }
-    }
-
-    //find 3:rd pulse
-    startIndex = it+1;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        esc2_pulse = max(minPulse,min(maxPulse,(int)strtol(tempBuffer,NULL,10)));
-        break;
-      }
-    }
-
-    //find 4:th pulse
-    startIndex = it+1;
-    for(it=startIndex;it<=stopIndex;it++) {
-      if(buffer[it] == ',' || buffer[it] == '*') {
-        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
-        esc3_pulse = max(minPulse,min(maxPulse,(int)strtol(tempBuffer,NULL,10)));
-        break;
-      }
-    }
-    
-    Serial.println("Pulses:");
-    Serial.print("esc0: ");
-    Serial.println(esc0_pulse);
-    Serial.print("esc1: ");
-    Serial.println(esc1_pulse);
-    Serial.print("esc2: ");
-    Serial.println(esc2_pulse);
-    Serial.print("esc3: ");
-    Serial.println(esc3_pulse);
-    
-    mode = 2; //send these pulses
+  if((*(buff+startPtr+2)=='1'))
+  {
+    Serial.println("<S2>");
   }
 }
 
-int calculateChecksum(uint8_t start,uint8_t stop)
+void decodeEulerData(char* buff, uint8_t startPtr, uint8_t endPtr)
 {
-    int c = 0;
-    for(uint8_t i=start;i<stop;i++)
-      c ^= buffer[i];
-    return c;
+  if(mode == 0) //Standby
+    return;
+
+   mode = 1; //set mode to 1 (it could have been 2 before)
+
+   int t_pitch = twoByteToInt(buff+startPtr+2);
+   target_pitch = max(-M_pi,min(M_pi,(t_pitch-500)*0.05*(M_pi/180)));
+   int t_roll = twoByteToInt(buff+startPtr+4);
+   target_roll = max(-M_pi,min(M_pi,(t_roll-500)*0.05*(M_pi/180)));
+   int t_yaw = twoByteToInt(buff+startPtr+6);   
+   target_yaw = max(-M_pi,min(M_pi,(t_yaw-500)*0.05*(M_pi/180)));
+   throttle = max(0,min(maxThrottle,twoByteToInt(buff+startPtr+8)));
 }
+
+void decodePulseData(char* buff, uint8_t startPtr, uint8_t endPtr)
+{
+  if(mode == 0) //Standby
+    return;
+  
+  mode = 2; //set mode to 2 (it could have been 1 before)
+  
+  esc0_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+2)));
+  esc1_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+4)));
+  esc2_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+6)));   
+  esc3_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+8)));
+
+  /*
+  Serial.println("Pulses:");
+  Serial.print("esc0: ");
+  Serial.println(esc0_pulse);
+  Serial.print("esc1: ");
+  Serial.println(esc1_pulse);
+  Serial.print("esc2: ");
+  Serial.println(esc2_pulse);
+  Serial.print("esc3: ");
+  Serial.println(esc3_pulse);
+  */
+}
+
+int twoByteToInt(char* b)
+{
+  char c_MSB = *(b);
+  char c_LSB = *(b+1);
+  uint8_t i_MSB = (int) c_MSB;
+  uint8_t i_LSB = (int) c_LSB;
+
+  int MSB = base61To10(i_MSB);
+  int LSB = base61To10(i_LSB);
+
+  int total = MSB*61+LSB;
+  return total;
+}
+
+int base61To10(int b61) 
+{ 
+  if(48<=b61 && b61<=57) //Number between 0-9
+    return b61-48;
+  if(97<=b61 && b61<=122) //lower case letter a-z
+    return 10 + b61-97;
+  if(65<=b61 && b61<=90) //Upper case letter A-Z
+    return 36 + b61-65;
+  return 0;
+}
+
+void sendEulerData(int serialPort)
+{
+  /*
+  //pitch
+  int pitch_MSB = max(0,min(60,(500+target_pitch*180/M_pi)/61));
+  int pitch_LSB = max(0,min(60,(int)(500+target_pitch*180/M_pi)%61));
+  eulerBuffer[2] = base61_numbers[pitch_MSB];
+  eulerBuffer[3] = base61_numbers[pitch_LSB];
+
+  //roll
+  int roll_MSB = max(0,min(60,(500+target_roll*180/M_pi)/61));
+  int roll_LSB = max(0,min(60,(int)(500+target_roll*180/M_pi)%61));
+  eulerBuffer[4] = base61_numbers[roll_MSB];
+  eulerBuffer[5] = base61_numbers[roll_LSB];
+
+  //yaw
+  int yaw_MSB = max(0,min(60,(500+target_yaw*180/M_pi)/61));
+  int yaw_LSB = max(0,min(60,(int)(500+target_yaw*180/M_pi)%61));
+  eulerBuffer[6] = base61_numbers[yaw_MSB];
+  eulerBuffer[7] = base61_numbers[yaw_LSB];
+
+  if(serialPort == 0)
+    Serial.println(eulerBuffer);
+  */
+  Serial.print("<e,");
+  Serial.print(phi*(180/M_pi));
+  Serial.print(",");
+  Serial.print(theta*(180/M_pi));
+  Serial.print(",");
+  Serial.print(psi*(180/M_pi));
+  Serial.println(">");
+}
+
+void calibrate()
+{
+  Serial.println("<tCALIBRATE>");
+  digitalWrite(13, HIGH);
+  gyro.calibrate();
+  digitalWrite(13, LOW);
+  Serial.println("<tDONE>");
+}
+

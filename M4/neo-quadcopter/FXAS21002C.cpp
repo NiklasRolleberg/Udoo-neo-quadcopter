@@ -217,9 +217,9 @@ void FXAS21002C::calibrate()
   gBias[2] = gyro_bias[2] / (int32_t) fcount;
 
 	//Serial.print("Calibration complete");
-	Serial.println(gBias[0]);
-	Serial.println(gBias[1]);
-	Serial.println(gBias[2]);
+	//Serial.println(gBias[0]);
+	//Serial.println(gBias[1]);
+	//Serial.println(gBias[2]);
 
 }
 

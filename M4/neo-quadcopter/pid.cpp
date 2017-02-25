@@ -1,7 +1,7 @@
 #include "pid.h"
 
 Pidcontroller::Pidcontroller(double* in, double* out, double* referenceValue,
-                double P, double I, double D,
+                double* P, double* I, double* D,
                 double minOutput, double maxOutput,
                 double IntegralLimits)
 {
@@ -28,13 +28,13 @@ void Pidcontroller::update()
   }  
   double timediff = millis() - lastUpdate;
   double error = *ref - *input;
-  I = min(Ilimit, max(-Ilimit, I + kI*error ));
+  I = min(Ilimit, max(-Ilimit, I + (*kI)*error ));
 
-  double p = kP*error;
+  double p = (*kP)*error;
   double d = 0;
   if(timediff>0)
   {
-    d = kD * (error-lasterror);
+    d = (*kD) * (error-lasterror);
     lasterror = error;
   }
   *output = output_offset + min(output_limit, max(-output_limit, p + I + d ));

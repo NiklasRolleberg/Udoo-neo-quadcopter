@@ -12,9 +12,9 @@ private:
   double* output;
   double* ref;
 
-  double kP = 0;
-  double kI = 0;
-  double kD = 0;
+  double* kP;
+  double* kI;
+  double* kD;
 
   double I = 0;
   double lasterror = 0;
@@ -26,7 +26,7 @@ private:
 
 public:
   Pidcontroller(double* in, double* out, double* referenceValue,
-                double P, double I, double D,
+                double* P, double* I, double* D,
                 double minOutput, double maxOutput,
                 double IntegralLimits);
 
