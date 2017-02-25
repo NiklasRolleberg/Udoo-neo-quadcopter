@@ -19,6 +19,8 @@ A9::A9()
 
   network.AddObserver(*this);
   network.start(5555);
+
+  //first = false;
 }
 A9::~A9()
 {
@@ -30,23 +32,38 @@ void A9::update()
   if(serialport_M4.hasChanged())
   {
     std::cout << "From M4: " << serialport_M4.getLine() << std::endl;
+    //std::cout << serialport_M4.getLine() << std::endl;
   }
   if(serialport_GPS.hasChanged())
   {
-    //std::cout << "From gps:" << serialport_GPS.getLine() << std::endl;
+    std::cout << "From gps:" << serialport_GPS.getLine() << std::endl;
     gps.decodeMessage(serialport_GPS.getLine());
   }
   if(network.hasChanged())
   {
+    
     std::string s = network.getMessage();
+    /* set pulse length */
+    
     std::cout << "From Android: " << s << std::endl;
     std::string toSend = "$QCPUL";
     toSend += s.substr (10,20);
     toSend += ",*00\n";
     std::cout << "toSend: " << toSend << std::endl;
     serialport_M4.send(toSend);
+    
+    /*
+    std::cout << "From Android: " << s << std::endl;
+    std::string toSend = "$QCSTA,0,0,0,";
+    toSend += s.substr (12,3);
+    toSend += ",*00\n";
+    std::cout << "toSend: " << toSend << std::endl;
+    serialport_M4.send(toSend);
+    */
+
+
     //serialport_M4.send("$QCPUL,1950,1950,1950,1950,*00\n");
 
-    //serialport_M4.send("$QCSTA,0.111,0.222,0.333,*00\n");
+    //serialport_M4.send("$QCSTA,0.111,0.222,0.333,100,*00\n");
   }
 }

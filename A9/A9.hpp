@@ -12,7 +12,7 @@ private:
   SerialPortManager serialport_M4;
   SerialPortManager serialport_GPS;
   UDP_server network;
-
+  
   GPS gps;
 public:
   A9();

@@ -48,6 +48,8 @@ void Pidcontroller::update()
   Serial.print(d);
   Serial.print(",");
   */
+  //Serial.print("pid Error: ");
+  //Serial.println(*output);
 }
 
 void Pidcontroller::reset()

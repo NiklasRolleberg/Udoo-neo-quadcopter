@@ -25,6 +25,10 @@ volatile uint8_t buffptr = 0;
 char csBuffer[2];
 char tempBuffer[10];
 
+//Serial0 Buffers
+char radioBuffer[64];
+volatile uint8_t serial0ptr = 0;
+
 // servo stuff
 uint8_t esc0_pin = 4;
 uint8_t esc1_pin = 5;
@@ -40,29 +44,29 @@ Servo esc3;
 
 int minPulse = 1000;
 int maxPulse = 2000;
-int esc0_pulse = 1500;
-int esc1_pulse = 1500;
-int esc2_pulse = 1500;
-int esc3_pulse = 1500;
+int esc0_pulse = 1000;
+int esc1_pulse = 1000;
+int esc2_pulse = 1000;
+int esc3_pulse = 1000;
 
 //for PID controllers
-double limit_min = -500;
-double limit_max = 500;
+double limit_min = -128;
+double limit_max = 128;
 double Ilimit = 100;
 
 
-double p_pitch = 0;
-double i_pitch = 0;
-double d_pitch = 0;
+double p_pitch = 27;
+double i_pitch = 0.02;
+double d_pitch = 3100;
 double output_pitch = 0;
 double target_pitch = 0;
 Pidcontroller pid_pitch(&phi,&output_pitch,&target_pitch,
                        p_pitch,i_pitch,d_pitch,
                        limit_min,limit_max,Ilimit);
 
-double p_roll = 0;
-double i_roll = 0;
-double d_roll = 0;
+double p_roll = 27;//100;
+double i_roll = 0.02;
+double d_roll = 3100;//100;
 double output_roll = 0;
 double target_roll = 0;
 Pidcontroller pid_roll(&theta,&output_roll,&target_roll,
@@ -79,6 +83,12 @@ Pidcontroller pid_yaw(&psi,&output_yaw,&target_yaw,
                        limit_min,limit_max,Ilimit);
 
 
+/**
+ * Throttle: base pulse length before pid addiations
+ * 0-maxthrottle
+ */
+int maxThrottle = 600;
+int throttle = 0;
 
 /**
  * Modes:
@@ -95,6 +105,7 @@ void setup()
   digitalWrite(13, LOW);
 
   Serial.begin(115200);
+  Serial0.begin(115200);
   Wire1.begin();
 
   // Initialize the FXAS21002C
@@ -109,13 +120,19 @@ void setup()
   esc1.attach(esc1_pin);
   esc2.attach(esc2_pin);
   esc3.attach(esc3_pin);
+
+  
+  esc0.writeMicroseconds(1000);
+  esc1.writeMicroseconds(1000);
+  esc2.writeMicroseconds(1000);
+  esc3.writeMicroseconds(1000);
   
 }
 
 void loop()
 {
 
-  delay(10000); //10s delay
+  //delay(10000); //10s delay
   // Gyro resolution?
   gyro.getGres();
 
@@ -133,7 +150,7 @@ void loop()
   while(true)
   {
     //200hz update frequency
-    if(micros() - lastUpdate >= 5000)
+    if(micros() - lastUpdate >= 5000) //5000
     {
       lastUpdate = micros();
       update(); //update angles
@@ -141,7 +158,7 @@ void loop()
       calculationTime = micros()-lastUpdate;
     }
     
-    if(micros() - lastWrite >= 500000)
+    if(micros() - lastWrite >= 1000000)
     {
       lastWrite = micros();
 
@@ -152,7 +169,17 @@ void loop()
       Serial.print(",");
       Serial.print(psi*(180/M_pi));
       Serial.println("*00\n");
+
+      Serial.print("Target: ");
+      Serial.print(target_pitch*(180/M_pi));
+      Serial.print(",");
+      Serial.print(target_roll*(180/M_pi));
+      Serial.print(",");
+      Serial.println(target_yaw*(180/M_pi));
+      
+      
     }
+    
     
     //Check serial port
     if (Serial.available())
@@ -179,6 +206,33 @@ void loop()
       {
         buffer[buffptr % 64] = byteRead;
         buffptr++;
+      }
+    }
+
+    
+    //Check serial port
+    if (Serial0.available())
+    {
+      //Serial.println("Reading");
+      // read the most recent byte
+      byteRead = Serial0.read();
+      if(byteRead == '\n')
+      {
+        decodeRadioBuffer();
+        //Serial.print("R: ");
+        //Serial.println(radioBuffer);
+        serial0ptr = 0;
+
+        //reset buffers
+        for(int8_t i=0;i<64;i++)
+        {
+          radioBuffer[i] = 0;
+        }
+      }
+      else
+      {
+        radioBuffer[serial0ptr % 64] = byteRead;
+        serial0ptr++;
       }
     }
   }
@@ -226,14 +280,14 @@ void updateServo()
       
       pid_roll.update();
       pid_pitch.update();
-      pid_yaw.update();
+      //pid_yaw.update();
       
       
       // TODO generate pulses based on pid output
-      int front_left = 1500 + 500.0*sin(phi);
-      int front_right = 1500 + 500.0*sin(theta);
-      int rear_left = 1500 + 500.0*sin(psi);
-      int rear_right = 1500 + 500.0*sin(phi);
+      int front_left  = 1000 + throttle - output_roll - output_pitch;
+      int front_right = 1000 + throttle + output_roll - output_pitch;
+      int rear_left   = 1000 + throttle - output_roll + output_pitch;
+      int rear_right  = 1000 + throttle + output_roll + output_pitch;
 
       esc0.writeMicroseconds(min(maxPulse,max(minPulse,front_left)));
       esc1.writeMicroseconds(min(maxPulse,max(minPulse,front_right)));
@@ -258,6 +312,95 @@ void updateServo()
       break;
     }
   }
+}
+
+void decodeRadioBuffer()
+{
+  //find '<'
+  bool foundstart = false;
+  bool foundstop = false;
+  int startIndex;
+  int stopIndex;
+  int8_t it;
+
+  for(int i=0;i<64;i++)
+  {
+    if(radioBuffer[i] == '<')
+    {
+      foundstart = true;
+      startIndex = i;  
+    }
+    if(radioBuffer[i] == '>')
+    {
+      foundstop = true;
+      stopIndex = i;  
+    }
+  }
+  if(!foundstart || !foundstop)
+    return;
+
+  //find 1:st pulse
+  startIndex+=3;
+  for(it=startIndex;it<=stopIndex;it++) {
+    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
+      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
+      target_roll = max(-M_pi/4,min(M_pi/4,(M_pi/180)*strtod(tempBuffer,NULL)));
+      break;
+    }
+  }
+
+  //Serial.println(tempBuffer);
+
+  //find 2:nd pulse
+  startIndex = it+1;
+  for(it=startIndex;it<=stopIndex;it++) {
+    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
+      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
+      target_pitch = max(-M_pi/4,min(M_pi/4,(M_pi/180)*strtod(tempBuffer,NULL)));
+      break;
+    }
+  }
+  //find 3:rd yaw
+  startIndex = it+1;
+  for(it=startIndex;it<=stopIndex;it++) {
+    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
+      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
+      target_yaw = max(-M_pi/4,min(M_pi/4,(M_pi/180)*strtod(tempBuffer,NULL)));
+      break;
+    }
+  }
+
+  //Reset tempbuffer
+  for(int i=0;i<10;i++)
+    tempBuffer[i] = 0;
+    
+  //find 4:th throttle
+  startIndex = it+1;
+  for(it=startIndex;it<=stopIndex;it++) {
+    if(radioBuffer[it] == ',' || radioBuffer[it] == '>') {
+      strncpy (tempBuffer, radioBuffer+startIndex, it-startIndex );
+      throttle = max(0,min(maxThrottle,strtod(tempBuffer,NULL)));
+      break;
+    }
+  }
+
+  //Serial.println(tempBuffer);
+
+  if(throttle > 10)
+    mode = 1; //set mode: fly!
+  else  
+    mode = 0; //standby 
+
+  /*  
+  Serial.print("Target_roll:");
+  Serial.println(target_roll);
+  Serial.print("Target_pitch:");
+  Serial.println(target_pitch);
+  Serial.print("Target_yaw:");
+  Serial.println(target_yaw);
+  Serial.print("Throttle: ");
+  Serial.println(throttle);
+  */  
 }
 
 void decodeMessage()
@@ -299,7 +442,7 @@ void decodeMessage()
   }
 
   /**Set Target Angles*/
-  /*"$QCSTA,roll,pitch,yaw,*CS"*/
+  /*"$QCSTA,roll,pitch,yaw,throttle,*CS"*/
   if (strncmp(buffer+startIndex+1,"QCSTA",5)==0) {
     //Serial.println("Set Target Angles message");
 
@@ -332,6 +475,16 @@ void decodeMessage()
         break;
       }
     }
+
+    //find 4:th throttle
+    startIndex = it+1;
+    for(it=startIndex;it<=stopIndex;it++) {
+      if(buffer[it] == ',' || buffer[it] == '*') {
+        strncpy (tempBuffer, buffer+startIndex, it-startIndex );
+        throttle = max(0,min(maxThrottle,strtod(tempBuffer,NULL)));
+        break;
+      }
+    }
     /*
     Serial.print("Target_roll:");
     Serial.println(target_roll);
@@ -339,9 +492,16 @@ void decodeMessage()
     Serial.println(target_pitch);
     Serial.print("Target_yaw:");
     Serial.println(target_yaw);
+    Serial.print("Throttle: ");
+    Serial.println(throttle);
     */
+    if(throttle > 10)
+      mode = 1; //set mode: fly!
+    else 
+      mode = 0; //standby
 
-    mode = 1; //set mode: fly!
+    //Serial.print("Mode: ");
+    //Serial.println(mode);
   }
 
   /**set pulse length*/
@@ -388,7 +548,7 @@ void decodeMessage()
         break;
       }
     }
-    /*
+    
     Serial.println("Pulses:");
     Serial.print("esc0: ");
     Serial.println(esc0_pulse);
@@ -398,7 +558,7 @@ void decodeMessage()
     Serial.println(esc2_pulse);
     Serial.print("esc3: ");
     Serial.println(esc3_pulse);
-    */
+    
     mode = 2; //send these pulses
   }
 }
