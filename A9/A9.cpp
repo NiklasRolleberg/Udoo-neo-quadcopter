@@ -9,8 +9,9 @@ A9::A9()
   serialport_M4.setSerialPort("/dev/ttyMCC",115200);
   serialport_M4.AddObserver(*this);
   serialport_M4.start();
-
-  /*Open serial port to gps (does not work.. The seraial port seams to be able
+  destination_set = false;
+  
+/*Open serial port to gps (does not work.. The seraial port seams to be able
   /* to send data but not receive)*/
   //serialport_GPS.setSerialPort("/dev/ttymxc5",9600);
   //serialport_GPS.AddObserver(*this);
@@ -34,8 +35,15 @@ void A9::update()
 {
   if(serialport_M4.hasChanged())
   {
-    std::cout << "From M4: " << serialport_M4.getLine() << std::endl;
-    //std::cout << serialport_M4.getLine() << std::endl;
+    std::string s = serialport_M4.getLine();
+    std::cout << "From M4: " << s << std::endl;
+    //forward message to pc
+    if(destination_set) 
+    {
+      char* cstr = &s[0u]; //Will this be a memory leak? Or will the memoty be cleared when the string goes out of scope..?
+      network.send(cstr,s.length());
+      //free(cstr);
+    }
   }
   if(serialport_GPS.hasChanged())
   {
@@ -46,8 +54,7 @@ void A9::update()
   {
 
     std::string s = network.getMessage();
-    /* set pulse length */
-
+    destination_set = true;
     std::cout << "network message received: " << '"' << s << '"' << std::endl;
     //std::cout << "substr: " << s.substr(0,2) << std::endl;
     if(s.substr(0,2) == ":1")
