@@ -96,9 +96,10 @@ int throttle = 0;
 
 /**
  * Modes:
- * 0 = standby -> send no pulse or idle
- * 1 = calculate pulse length based on aircraft orientation
- * 2 = send pulse length set by the operator
+ * 0 = idle. Send idle pulse
+ * 1 = armed
+ * 2 = calculate pulse length based on aircraft orientation
+ * 3 = send pulse length set by the operator
 */
 int mode = 0;
 
@@ -260,7 +261,7 @@ void update()
 void updateServo()
 {
   switch (mode){
-    case 1:
+    case 2:
     {
       
       pid_roll.update();
@@ -280,7 +281,7 @@ void updateServo()
       esc3.writeMicroseconds(min(maxPulse,max(minPulse,rear_right)));
       break;
     }
-    case 2:
+    case 3:
     {
       esc0.writeMicroseconds(esc0_pulse);
       esc1.writeMicroseconds(esc1_pulse);
@@ -356,11 +357,13 @@ void decodeBuffer(char* buff, uint8_t ptr)
         calibrate();
       break;    
   }
+  Serial.print("Curreant mode: ");
+  Serial.println(mode);
 }
 
 void decodeArm(char* buff, uint8_t startPtr, uint8_t endPtr) 
 {
-  if(mode != 1)
+  if(mode == 0 || mode == 1)
   {
     mode = 1;
     throttle = 0;
@@ -390,10 +393,10 @@ void decodeStop(char* buff, uint8_t startPtr, uint8_t endPtr)
 
 void decodeEulerData(char* buff, uint8_t startPtr, uint8_t endPtr)
 {
-  if(mode == 0) //Standby
+  if(mode == 0 || mode == 3) //idle or pulse-mode
     return;
-
-   mode = 1; //set mode to 1 (it could have been 2 before)
+ 
+   mode = 2; //set mode to 2 (it could have been "armed" before)
 
    int t_pitch = twoByteToInt(buff+startPtr+2);
    target_pitch = max(-M_pi,min(M_pi,(t_pitch-500)*0.05*(M_pi/180)));
@@ -406,10 +409,10 @@ void decodeEulerData(char* buff, uint8_t startPtr, uint8_t endPtr)
 
 void decodePulseData(char* buff, uint8_t startPtr, uint8_t endPtr)
 {
-  if(mode == 0) //Standby
+  if(mode == 0 || mode == 2) //idle or flight mode
     return;
   
-  mode = 2; //set mode to 2 (it could have been 1 before)
+  mode = 3; //set mode to 3 (it could have been "armed" before)
   
   esc0_pulse = 1000 + max(0,min(1000,twoByteToInt(buff+startPtr+2)));
   esc1_pulse = 1000 + max(0,min(1000,twoByteToInt(buff+startPtr+4)));
@@ -489,10 +492,13 @@ void sendEulerData(int serialPort)
 
 void calibrate()
 {
-  Serial.println("<tCALIBRATE>");
-  digitalWrite(13, HIGH);
-  gyro.calibrate();
-  digitalWrite(13, LOW);
-  Serial.println("<tDONE>");
+  if(mode == 0 || mode == 1) // Don't allow calibration when flying..
+  {
+    Serial.println("<tCALIBRATE>");
+    digitalWrite(13, HIGH);
+    gyro.calibrate();
+    digitalWrite(13, LOW);
+    Serial.println("<tDONE>"); 
+  }
 }
 
