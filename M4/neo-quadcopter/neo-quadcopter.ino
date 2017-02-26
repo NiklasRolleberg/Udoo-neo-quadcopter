@@ -411,12 +411,12 @@ void decodePulseData(char* buff, uint8_t startPtr, uint8_t endPtr)
   
   mode = 2; //set mode to 2 (it could have been 1 before)
   
-  esc0_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+2)));
-  esc1_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+4)));
-  esc2_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+6)));   
-  esc3_pulse = max(0,min(1000,twoByteToInt(buff+startPtr+8)));
+  esc0_pulse = 1000 + max(0,min(1000,twoByteToInt(buff+startPtr+2)));
+  esc1_pulse = 1000 + max(0,min(1000,twoByteToInt(buff+startPtr+4)));
+  esc2_pulse = 1000 + max(0,min(1000,twoByteToInt(buff+startPtr+6)));   
+  esc3_pulse = 1000 + max(0,min(1000,twoByteToInt(buff+startPtr+8)));
 
-  /*
+  
   Serial.println("Pulses:");
   Serial.print("esc0: ");
   Serial.println(esc0_pulse);
@@ -426,7 +426,7 @@ void decodePulseData(char* buff, uint8_t startPtr, uint8_t endPtr)
   Serial.println(esc2_pulse);
   Serial.print("esc3: ");
   Serial.println(esc3_pulse);
-  */
+  
 }
 
 int twoByteToInt(char* b)
