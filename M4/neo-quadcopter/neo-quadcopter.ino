@@ -13,7 +13,8 @@ FXAS21002C gyro = FXAS21002C(0x20); // SA0=1 0x21
 FXOS8700CQ accMag = FXOS8700CQ(0x1E);
 
 extern volatile float q0, q1, q2, q3;  // quaternion elements representing the estimated orientation
-double phi, theta, psi;
+float phi, theta, psi; //orientation
+float dphi,dtheta,dpsi; //angular velocity
 
 //phi = pitch (fram/bak)
 //theta = roll (luta höger/vänster)
@@ -54,35 +55,39 @@ int esc2_pulse = 1000;
 int esc3_pulse = 1000;
 
 //for PID controllers
-double limit_min = -128;
-double limit_max = 128;
-double Ilimit = 100;
+float limit_min = -128;
+float limit_max = 128;
+float Ilimit = 100;
+float max_angularVel = 10; //10 degrees/sec
 
 
-double p_pitch = 27;
-double i_pitch = 0.02;
-double d_pitch = 3100;
-double output_pitch = 0;
-double target_pitch = 0;
-Pidcontroller pid_pitch(&phi,&output_pitch,&target_pitch,
+float p_pitch = 0.5;
+float i_pitch = 0;
+float d_pitch = 0;
+float output_pitch = 0;
+float target_pitchV = 0; //target angular velocity
+float target_pitch = 0;  //target absolute angle
+Pidcontroller pid_pitch(&dphi,&output_pitch,&target_pitchV,
                        &p_pitch,&i_pitch,&d_pitch,
                        limit_min,limit_max,Ilimit);
 
-double p_roll = 27;//100;
-double i_roll = 0.02;
-double d_roll = 3100;//100;
-double output_roll = 0;
-double target_roll = 0;
-Pidcontroller pid_roll(&theta,&output_roll,&target_roll,
+float p_roll = 0.5;
+float i_roll = 0;
+float d_roll = 0;
+float output_roll = 0;
+float target_rollV = 0;
+float target_roll = 0;
+Pidcontroller pid_roll(&dtheta,&output_roll,&target_rollV,
                        &p_roll,&i_roll,&d_roll,
                        limit_min,limit_max,Ilimit);
 
-double p_yaw = 0;
-double i_yaw = 0;
-double d_yaw = 0;
-double output_yaw = 0;
-double target_yaw = 0;
-Pidcontroller pid_yaw(&psi,&output_yaw,&target_yaw,
+float p_yaw = 0;
+float i_yaw = 0;
+float d_yaw = 0;
+float output_yaw = 0;
+float target_yawV = 0;
+float target_yaw = 0;
+Pidcontroller pid_yaw(&dpsi,&output_yaw,&target_yawV,
                        &p_yaw,&i_yaw,&d_yaw,
                        limit_min,limit_max,Ilimit);
 
@@ -101,7 +106,7 @@ int throttle = 0;
  * 2 = calculate pulse length based on aircraft orientation
  * 3 = send pulse length set by the operator
 */
-int mode = 0;
+int mode = 0; //should be 0 to begin with
 
 void setup()
 {
@@ -159,14 +164,30 @@ void loop()
     {
       lastUpdate = micros();
       update(); //update angles
-      updateServo(); //update pwn signals
+      updateServo(); //update pwm signals
       calculationTime = micros()-lastUpdate;
     }
 
     if(micros() - lastWrite >= 10000000)
     {
       lastWrite = micros();
-      Serial.println("M4 is still running");
+      Serial.println("\nM4 is still running");
+      /*
+      Serial.print(" angular Vel (pitch):  ");
+      Serial.print(dphi);
+      Serial.print(" Output pitch: ");
+      Serial.println(output_pitch);
+
+      Serial.print(" angular Vel (roll):   ");
+      Serial.print(dtheta);
+      Serial.print(" Output roll:  ");
+      Serial.println(output_roll);
+
+      Serial.print(" angular Vel (yaw):    ");
+      Serial.print(dpsi);
+      Serial.print(" Output yaw:  ");
+      Serial.println(output_yaw);
+      */
     }
     
     //Check serial port
@@ -232,9 +253,13 @@ void update()
   accMag.readAccelData();
   accMag.readMagData();
 
-  MadgwickAHRSupdate((M_pi/180)*gyro.gyroData.x*gyro.gRes
-                    ,(M_pi/180)*gyro.gyroData.y*gyro.gRes
-                    ,(M_pi/180)*gyro.gyroData.z*gyro.gRes
+  dphi = gyro.gyroData.x*gyro.gRes;
+  dtheta = gyro.gyroData.y*gyro.gRes;
+  dpsi = gyro.gyroData.z*gyro.gRes;
+  
+  MadgwickAHRSupdate((M_pi/180)*dphi  //X
+                    ,(M_pi/180)*dtheta  // Y
+                    ,(M_pi/180)*dpsi // Z
                     ,-accMag.accelData.x*accMag.getAres()
                     , accMag.accelData.y*accMag.getAres()
                     ,-accMag.accelData.z*accMag.getAres()
@@ -263,22 +288,31 @@ void updateServo()
   switch (mode){
     case 2:
     {
+      /*
+      //set target angular velocity based on aircraft orientation
+      target_pitchV = 0.5*max(-max_angularVel,min(max_angularVel,phi-target_pitch));
+      target_rollV = 0.5*max(-max_angularVel,min(max_angularVel,theta-target_roll));
+      target_yawV = 0.5*max(-max_angularVel,min(max_angularVel,psi-target_yaw));
+      */
       
-      pid_roll.update();
+      target_pitchV = 0;
+      target_rollV = 0;
+      target_yawV = 0;
+      
       pid_pitch.update();
+      pid_roll.update();
       //pid_yaw.update();
       
-      
-      // TODO generate pulses based on pid output
+      // TODO add yaw
       int front_left  = 1000 + throttle - output_roll - output_pitch;
       int front_right = 1000 + throttle + output_roll - output_pitch;
       int rear_left   = 1000 + throttle - output_roll + output_pitch;
       int rear_right  = 1000 + throttle + output_roll + output_pitch;
-
+     
       esc0.writeMicroseconds(min(maxPulse,max(minPulse,front_left)));
       esc1.writeMicroseconds(min(maxPulse,max(minPulse,front_right)));
       esc2.writeMicroseconds(min(maxPulse,max(minPulse,rear_left)));
-      esc3.writeMicroseconds(min(maxPulse,max(minPulse,rear_right)));
+      esc3.writeMicroseconds(min(maxPulse,max(minPulse,rear_right)));      
       break;
     }
     case 3:
@@ -357,8 +391,8 @@ void decodeBuffer(char* buff, uint8_t ptr)
         calibrate();
       break;    
   }
-  Serial.print("Curreant mode: ");
-  Serial.println(mode);
+  //Serial.print("Curreant mode: ");
+  //Serial.println(mode);
 }
 
 void decodeArm(char* buff, uint8_t startPtr, uint8_t endPtr) 
@@ -370,6 +404,10 @@ void decodeArm(char* buff, uint8_t startPtr, uint8_t endPtr)
     target_pitch = 0;
     target_roll= 0;
     target_yaw= 0;
+
+    target_pitchV = 0;
+    target_rollV= 0;
+    target_yawV= 0;
   }
   if((*(buff+startPtr+2)=='1'))
   {
@@ -381,6 +419,10 @@ void decodeStop(char* buff, uint8_t startPtr, uint8_t endPtr)
 {
   mode = 0;
   throttle = 0;
+  target_pitchV = 0;
+  target_rollV= 0;
+  target_yawV= 0;
+
   target_pitch = 0;
   target_roll= 0;
   target_yaw= 0;
@@ -459,28 +501,6 @@ int base61To10(int b61)
 
 void sendEulerData(int serialPort)
 {
-  /*
-  //pitch
-  int pitch_MSB = max(0,min(60,(500+target_pitch*180/M_pi)/61));
-  int pitch_LSB = max(0,min(60,(int)(500+target_pitch*180/M_pi)%61));
-  eulerBuffer[2] = base61_numbers[pitch_MSB];
-  eulerBuffer[3] = base61_numbers[pitch_LSB];
-
-  //roll
-  int roll_MSB = max(0,min(60,(500+target_roll*180/M_pi)/61));
-  int roll_LSB = max(0,min(60,(int)(500+target_roll*180/M_pi)%61));
-  eulerBuffer[4] = base61_numbers[roll_MSB];
-  eulerBuffer[5] = base61_numbers[roll_LSB];
-
-  //yaw
-  int yaw_MSB = max(0,min(60,(500+target_yaw*180/M_pi)/61));
-  int yaw_LSB = max(0,min(60,(int)(500+target_yaw*180/M_pi)%61));
-  eulerBuffer[6] = base61_numbers[yaw_MSB];
-  eulerBuffer[7] = base61_numbers[yaw_LSB];
-
-  if(serialPort == 0)
-    Serial.println(eulerBuffer);
-  */
   Serial.print("<e,");
   Serial.print(phi*(180/M_pi));
   Serial.print(",");
@@ -492,6 +512,7 @@ void sendEulerData(int serialPort)
 
 void calibrate()
 {
+  //TODO add rotation matrix to accelerometer and find a way to calibrate the gyro
   if(mode == 0 || mode == 1) // Don't allow calibration when flying..
   {
     Serial.println("<tCALIBRATE>");

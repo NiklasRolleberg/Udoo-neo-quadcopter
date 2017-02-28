@@ -1,17 +1,17 @@
 #include "pid.h"
 
-Pidcontroller::Pidcontroller(double* in, double* out, double* referenceValue,
-                double* P, double* I, double* D,
-                double minOutput, double maxOutput,
-                double IntegralLimits)
+Pidcontroller::Pidcontroller(float* in, float* out, float* referenceValue,
+                float* P_value, float* I_value, float* D_value,
+                float minOutput, float maxOutput,
+                float IntegralLimits)
 {
   input = in;
   output = out;
   ref = referenceValue;
 
-  kP = P;
-  kI = I;
-  kD = D;
+  kP = P_value;
+  kI = I_value;
+  kD = D_value;
 
   output_limit = (maxOutput - minOutput) / 2.0;
   output_offset = maxOutput - output_limit;
@@ -26,12 +26,12 @@ void Pidcontroller::update()
     lastUpdate = micros();
     lasterror = *ref - *input;
   }  
-  double timediff = millis() - lastUpdate;
-  double error = *ref - *input;
+  float timediff = millis() - lastUpdate;
+  float error = *ref - *input;
   I = min(Ilimit, max(-Ilimit, I + (*kI)*error ));
 
-  double p = (*kP)*error;
-  double d = 0;
+  float p = (*kP)*error;
+  float d = 0;
   if(timediff>0)
   {
     d = (*kD) * (error-lasterror);

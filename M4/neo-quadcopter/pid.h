@@ -8,27 +8,27 @@ class Pidcontroller
 private:
   uint32_t lastUpdate = 0;
 
-  double* input;
-  double* output;
-  double* ref;
+  float* input;
+  float* output;
+  float* ref;
 
-  double* kP;
-  double* kI;
-  double* kD;
+  float* kP;
+  float* kI;
+  float* kD;
 
-  double I = 0;
-  double lasterror = 0;
+  float I = 0;
+  float lasterror = 0;
 
-  double output_limit = 0;
-  double output_offset = 0;
-  double Ilimit = 0;
+  float output_limit = 0;
+  float output_offset = 0;
+  float Ilimit = 0;
 
 
 public:
-  Pidcontroller(double* in, double* out, double* referenceValue,
-                double* P, double* I, double* D,
-                double minOutput, double maxOutput,
-                double IntegralLimits);
+  Pidcontroller(float* in, float* out, float* referenceValue,
+                float* P, float* I, float* D,
+                float minOutput, float maxOutput,
+                float IntegralLimits);
 
 
   void update();
