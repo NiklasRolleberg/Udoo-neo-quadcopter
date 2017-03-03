@@ -54,5 +54,6 @@ void Pidcontroller::update()
 
 void Pidcontroller::reset()
 {
-
+  I=0;
+  lastUpdate = 0;
 }

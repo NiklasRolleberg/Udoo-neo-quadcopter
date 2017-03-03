@@ -62,7 +62,7 @@ float max_angularVel = 10; //10 degrees/sec
 
 
 float p_pitch = 0.5;
-float i_pitch = 0;
+float i_pitch = 0.01;
 float d_pitch = 0;
 float output_pitch = 0;
 float target_pitchV = 0; //target angular velocity
@@ -72,7 +72,7 @@ Pidcontroller pid_pitch(&dphi,&output_pitch,&target_pitchV,
                        limit_min,limit_max,Ilimit);
 
 float p_roll = 0.5;
-float i_roll = 0;
+float i_roll = 0.01;
 float d_roll = 0;
 float output_roll = 0;
 float target_rollV = 0;
@@ -81,7 +81,7 @@ Pidcontroller pid_roll(&dtheta,&output_roll,&target_rollV,
                        &p_roll,&i_roll,&d_roll,
                        limit_min,limit_max,Ilimit);
 
-float p_yaw = 0;
+float p_yaw = 5;
 float i_yaw = 0;
 float d_yaw = 0;
 float output_yaw = 0;
@@ -155,6 +155,7 @@ void loop()
   uint32_t lastWrite = micros();
   uint32_t lastUpdate = micros();
   uint32_t servoupdate = micros();
+  uint32_t lastMessage = micros();
 
   uint32_t calculationTime;
   while(true)
@@ -168,7 +169,7 @@ void loop()
       calculationTime = micros()-lastUpdate;
     }
 
-    if(micros() - lastWrite >= 10000000)
+    if(micros() - lastWrite >= 5000000)
     {
       lastWrite = micros();
       Serial.println("\nM4 is still running");
@@ -188,6 +189,39 @@ void loop()
       Serial.print(" Output yaw:  ");
       Serial.println(output_yaw);
       */
+      Serial.print("Mode: ");
+      Serial.println(mode);
+      /*
+      Serial.println("Current ");
+      Serial.print(dphi);
+      Serial.print(",");
+      Serial.print(dtheta);
+      Serial.print(",");
+      Serial.println(dpsi);
+
+      Serial.println("Target ");
+      Serial.print(target_pitchV);
+      Serial.print(",");
+      Serial.print(target_rollV);
+      Serial.print(",");
+      Serial.println(target_yawV);
+      */
+      sendEulerData(0);
+    }
+
+    //No control message for 10s.. stop
+    if(mode == 2 && micros() - lastMessage >= 10000000) 
+    {
+      Serial.println("Timeout stoping");
+      mode = 0;
+      throttle = 0;
+      target_pitchV = 0;
+      target_rollV= 0;
+      target_yawV= 0;
+    
+      target_pitch = 0;
+      target_roll= 0;
+      target_yaw= 0;
     }
     
     //Check serial port
@@ -198,6 +232,7 @@ void loop()
       byteRead = Serial.read();
       if(byteRead == '>')
       {
+        lastMessage = micros();
         buffer[buffptr % bufferSize] = byteRead;
         buffptr++;
         decodeBuffer(&buffer[0],buffptr);
@@ -288,26 +323,26 @@ void updateServo()
   switch (mode){
     case 2:
     {
-      /*
-      //set target angular velocity based on aircraft orientation
-      target_pitchV = 0.5*max(-max_angularVel,min(max_angularVel,phi-target_pitch));
-      target_rollV = 0.5*max(-max_angularVel,min(max_angularVel,theta-target_roll));
-      target_yawV = 0.5*max(-max_angularVel,min(max_angularVel,psi-target_yaw));
-      */
       
-      target_pitchV = 0;
-      target_rollV = 0;
-      target_yawV = 0;
+      //set target angular velocity based on aircraft orientation
+      float K = 0.25;
+      target_pitchV = max(-max_angularVel,min(max_angularVel,K*(target_pitch-phi)*180/M_pi));
+      target_rollV = max(-max_angularVel,min(max_angularVel,K*(target_roll-theta)*180/M_pi));
+      target_yawV = max(-max_angularVel,min(max_angularVel,K*(target_yaw-psi)*180/M_pi));
+      
+      
+      //target_pitchV = 0;
+      //target_rollV = 0;
+      //target_yawV = 0;
       
       pid_pitch.update();
       pid_roll.update();
-      //pid_yaw.update();
+      pid_yaw.update();
       
-      // TODO add yaw
-      int front_left  = 1000 + throttle - output_roll - output_pitch;
-      int front_right = 1000 + throttle + output_roll - output_pitch;
-      int rear_left   = 1000 + throttle - output_roll + output_pitch;
-      int rear_right  = 1000 + throttle + output_roll + output_pitch;
+      int front_left  = 1000 + throttle - output_roll - output_pitch - output_yaw;
+      int front_right = 1000 + throttle + output_roll - output_pitch + output_yaw;;
+      int rear_left   = 1000 + throttle - output_roll + output_pitch + output_yaw;;
+      int rear_right  = 1000 + throttle + output_roll + output_pitch - output_yaw;;
      
       esc0.writeMicroseconds(min(maxPulse,max(minPulse,front_left)));
       esc1.writeMicroseconds(min(maxPulse,max(minPulse,front_right)));
@@ -408,6 +443,10 @@ void decodeArm(char* buff, uint8_t startPtr, uint8_t endPtr)
     target_pitchV = 0;
     target_rollV= 0;
     target_yawV= 0;
+
+    pid_pitch.reset();
+    pid_roll.reset();
+    pid_yaw.reset();
   }
   if((*(buff+startPtr+2)=='1'))
   {
@@ -443,7 +482,7 @@ void decodeEulerData(char* buff, uint8_t startPtr, uint8_t endPtr)
    int t_pitch = twoByteToInt(buff+startPtr+2);
    target_pitch = max(-M_pi,min(M_pi,(t_pitch-500)*0.05*(M_pi/180)));
    int t_roll = twoByteToInt(buff+startPtr+4);
-   target_roll = max(-M_pi,min(M_pi,(t_roll-500)*0.05*(M_pi/180)));
+   target_roll = -max(-M_pi,min(M_pi,(t_roll-500)*0.05*(M_pi/180)));
    int t_yaw = twoByteToInt(buff+startPtr+6);   
    target_yaw = max(-M_pi,min(M_pi,(t_yaw-500)*0.05*(M_pi/180)));
    throttle = max(0,min(maxThrottle,twoByteToInt(buff+startPtr+8)));
