@@ -212,7 +212,7 @@ void loop()
     //No control message for 10s.. stop
     if(mode == 2 && micros() - lastMessage >= 10000000) 
     {
-      Serial.println("Timeout stoping");
+      Serial.println("Timeout");
       mode = 0;
       throttle = 0;
       target_pitchV = 0;
@@ -261,6 +261,7 @@ void loop()
       byteRead = Serial0.read();
       if(byteRead == '\n')
       {
+        lastMessage = micros();
         radioBuffer[serial0ptr % 64] = byteRead;
         serial0ptr++;
         decodeBuffer(&radioBuffer[0],buffptr);
@@ -398,32 +399,38 @@ void decodeBuffer(char* buff, uint8_t ptr)
   //Decode the message
   switch(type) {
     case 'A':
-      //Serial.println("Arm");
+      //Arm
       if(message_length == 3)
         decodeArm(buff,startChar,endChar);
       break;
     case 'S':
-      //Serial.println("Stop");
+      //Stop
       if(message_length == 3)
         decodeStop(buff,startChar,endChar);
       break;
     case 'E':
-      //Serial.println("control data");
+      //Set reference angle
       if(message_length == 10)
         decodeEulerData(buff,startChar,endChar);
       break;
     case 'P':
-      //Serial.println("Manual control data");
+      //Set servo pulse manualy
       if(message_length == 10)
         decodePulseData(buff,startChar,endChar);
       break;
     case 'e':
+      //Write euler angles
       if(message_length == 3)
         sendEulerData(0);
       break;
     case 'C':
+      //Calibrate 
       if(message_length == 3)
         calibrate();
+   case 'R':
+      //chenge Regulator settings
+      if(message_length == 5)
+        decodePID(buff,startChar,endChar);
       break;    
   }
   //Serial.print("Curreant mode: ");
@@ -510,7 +517,6 @@ void decodePulseData(char* buff, uint8_t startPtr, uint8_t endPtr)
   Serial.println(esc2_pulse);
   Serial.print("esc3: ");
   Serial.println(esc3_pulse);
-  
 }
 
 int twoByteToInt(char* b)
@@ -551,7 +557,7 @@ void sendEulerData(int serialPort)
 
 void calibrate()
 {
-  //TODO add rotation matrix to accelerometer and find a way to calibrate the gyro
+  //TODO add rotation matrix to accelerometer and find a way to calibrate the magnetometer
   if(mode == 0 || mode == 1) // Don't allow calibration when flying..
   {
     Serial.println("<tCALIBRATE>");
@@ -562,3 +568,120 @@ void calibrate()
   }
 }
 
+void decodePID(char* buff, uint8_t startPtr, uint8_t endPtr) {
+  //Serial.println("Decode PID");
+
+  uint8_t regulator = ((int) (*(buff+startPtr+2)))-48;
+  uint8_t setting = ((int) (*(buff+startPtr+3)))-48;
+  uint8_t inc = ((int) (*(buff+startPtr+4)))-48;
+
+  float p_inc = 0.25;
+  float i_inc = 0.01;
+  float d_inc = 0.1;
+  switch(regulator) {
+    case 0:
+      //Serial.println("Pitch");
+      switch(setting) {
+        case(0):
+          //Serial.println("P");
+          if(inc==1)
+            p_pitch += p_inc;
+          if(inc==2)
+            p_pitch -= p_inc;
+          break;
+        case(1):
+          //Serial.println("I");
+          if(inc==1)
+            i_pitch += i_inc;
+          if(inc==2)
+            i_pitch -= i_inc;
+          break;
+        case(2):
+          //Serial.println("D");
+          if(inc==1)
+            d_pitch += d_inc;
+          if(inc==2)
+            d_pitch -= d_inc;
+          break;
+      }
+      break;
+    case 1:
+      //Serial.println("Roll");
+      switch(setting) {
+        case(0):
+          //Serial.println("P");
+          if(inc==1)
+            p_roll += p_inc;
+          if(inc==2)
+            p_roll -= p_inc;
+          break;
+        case(1):
+          //Serial.println("I");
+          if(inc==1)
+            i_roll += i_inc;
+          if(inc==2)
+            i_roll -= i_inc;
+          break;
+        case(2):
+          //Serial.println("D");
+          if(inc==1)
+            d_roll += d_inc;
+          if(inc==2)
+            d_roll -= d_inc;
+          break;
+      }
+      break;
+    case 2:
+      //Serial.println("yaw");
+      switch(setting) {
+        case(0):
+          //Serial.println("P");
+          if(inc==1)
+            p_yaw += p_inc;
+          if(inc==2)
+            p_yaw -= p_inc;
+          break;
+        case(1):
+          //Serial.println("I");
+          if(inc==1)
+            i_yaw += i_inc;
+          if(inc==2)
+            i_yaw -= i_inc;
+          break;
+        case(2):
+          //Serial.println("D");
+          if(inc==1)
+            d_yaw += d_inc;
+          if(inc==2)
+            d_yaw -= d_inc;
+          break;
+      }
+      break;
+  }
+
+  //pitch
+  Serial.println("Pid settings: ");
+  Serial.print("Pitch: P=");
+  Serial.println(p_pitch);
+  Serial.print("       I=");
+  Serial.println(i_pitch);
+  Serial.print("       D=");
+  Serial.println(d_pitch);
+
+  //roll
+  Serial.print("Roll:  P=");
+  Serial.println(p_roll);
+  Serial.print("       I=");
+  Serial.println(i_roll);
+  Serial.print("       D=");
+  Serial.println(d_roll);
+
+  //yaw
+  Serial.print("Yaw:   P=");
+  Serial.println(p_yaw);
+  Serial.print("       I=");
+  Serial.println(i_yaw);
+  Serial.print("       D=");
+  Serial.println(d_yaw);
+  
+}
