@@ -61,9 +61,9 @@ float Ilimit = 100;
 float max_angularVel = 10; //10 degrees/sec
 
 
-float p_pitch = 0.5;
-float i_pitch = 0.01;
-float d_pitch = 0;
+float p_pitch = 2;
+float i_pitch = 0;
+float d_pitch = 0.2;
 float output_pitch = 0;
 float target_pitchV = 0; //target angular velocity
 float target_pitch = 0;  //target absolute angle
@@ -71,9 +71,9 @@ Pidcontroller pid_pitch(&dphi,&output_pitch,&target_pitchV,
                        &p_pitch,&i_pitch,&d_pitch,
                        limit_min,limit_max,Ilimit);
 
-float p_roll = 0.5;
-float i_roll = 0.01;
-float d_roll = 0;
+float p_roll = 1.875;
+float i_roll = 0;
+float d_roll = 0.25;
 float output_roll = 0;
 float target_rollV = 0;
 float target_roll = 0;
@@ -326,7 +326,7 @@ void updateServo()
     {
       
       //set target angular velocity based on aircraft orientation
-      float K = 0.25;
+      float K = 0.6;
       target_pitchV = max(-max_angularVel,min(max_angularVel,K*(target_pitch-phi)*180/M_pi));
       target_rollV = max(-max_angularVel,min(max_angularVel,K*(target_roll-theta)*180/M_pi));
       target_yawV = max(-max_angularVel,min(max_angularVel,K*(target_yaw-psi)*180/M_pi));
@@ -334,7 +334,7 @@ void updateServo()
       
       //target_pitchV = 0;
       //target_rollV = 0;
-      //target_yawV = 0;
+      target_yawV = 0;
       
       pid_pitch.update();
       pid_roll.update();
@@ -575,9 +575,9 @@ void decodePID(char* buff, uint8_t startPtr, uint8_t endPtr) {
   uint8_t setting = ((int) (*(buff+startPtr+3)))-48;
   uint8_t inc = ((int) (*(buff+startPtr+4)))-48;
 
-  float p_inc = 0.25;
+  float p_inc = 0.125;
   float i_inc = 0.01;
-  float d_inc = 0.1;
+  float d_inc = 0.05;
   switch(regulator) {
     case 0:
       //Serial.println("Pitch");
