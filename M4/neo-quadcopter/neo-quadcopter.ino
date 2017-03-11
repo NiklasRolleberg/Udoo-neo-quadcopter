@@ -61,7 +61,7 @@ float Ilimit = 100;
 float max_angularVel = 10; //10 degrees/sec
 
 
-float p_pitch = 2;
+float p_pitch = 1.25;
 float i_pitch = 0;
 float d_pitch = 0.2;
 float output_pitch = 0;
@@ -71,9 +71,9 @@ Pidcontroller pid_pitch(&dphi,&output_pitch,&target_pitchV,
                        &p_pitch,&i_pitch,&d_pitch,
                        limit_min,limit_max,Ilimit);
 
-float p_roll = 1.875;
+float p_roll = 1.125;
 float i_roll = 0;
-float d_roll = 0.25;
+float d_roll = 0.20;
 float output_roll = 0;
 float target_rollV = 0;
 float target_roll = 0;
@@ -115,7 +115,7 @@ void setup()
   digitalWrite(13, LOW);
 
   Serial.begin(115200);
-  //Serial0.begin(115200);
+  Serial0.begin(115200);
   Wire1.begin();
 
   // Initialize the FXAS21002C
@@ -254,17 +254,18 @@ void loop()
         buffptr++;
       }
     }
-    /*
+    
     //Check other serial port
     if (Serial0.available())
     {
+      //Serial.println("Reading from serial0");
       byteRead = Serial0.read();
       if(byteRead == '\n')
       {
         lastMessage = micros();
         radioBuffer[serial0ptr % 64] = byteRead;
         serial0ptr++;
-        decodeBuffer(&radioBuffer[0],buffptr);
+        decodeBuffer(&radioBuffer[0],serial0ptr);
         serial0ptr = 0;
 
         //reset buffers
@@ -278,7 +279,7 @@ void loop()
         radioBuffer[serial0ptr % bufferSize] = byteRead;
         serial0ptr++;
       }
-    }*/
+    }
   }
 }
 
@@ -326,7 +327,7 @@ void updateServo()
     {
       
       //set target angular velocity based on aircraft orientation
-      float K = 0.6;
+      float K = 0.3;
       target_pitchV = max(-max_angularVel,min(max_angularVel,K*(target_pitch-phi)*180/M_pi));
       target_rollV = max(-max_angularVel,min(max_angularVel,K*(target_roll-theta)*180/M_pi));
       target_yawV = max(-max_angularVel,min(max_angularVel,K*(target_yaw-psi)*180/M_pi));
